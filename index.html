@@ -118,7 +118,8 @@ const allTags=()=>[...new Set(Q.flatMap(q=>q.tags))].sort();
 function start(mode,reviewOnly){const tag=$('#ftag')?.value||'';
  let l=Q.filter(q=>(!tag||q.tags.includes(tag))&&(!reviewOnly||q.review));
  if(!l.length)return alert(reviewOnly?'要復習の問題がありません':'問題がありません。Excel/CSVの読み込みか問題管理から追加してください。');
- ses={mode,list:shuf(l).map(q=>q.id),i:0,flip:false,ans:null};go(mode)}
+ const n=+($('#fcnt')?.value)||0,all=shuf(l).map(q=>q.id);
+ ses={mode,list:n?all.slice(0,n):all,rest:n?all.slice(n):[],n,i:0,flip:false,ans:null};go(mode)}
 function choices(q){const set=new Set(shuf(q.wrong.filter(x=>x&&x!==q.answer)).slice(0,3));
  const add=l=>{for(const x of shuf(l)){if(set.size>=3)break;if(x&&x!==q.answer)set.add(x)}};
  add(Q.filter(o=>o.id!==q.id&&o.tags.some(t=>q.tags.includes(t))).map(o=>o.answer));
@@ -126,7 +127,9 @@ function choices(q){const set=new Set(shuf(q.wrong.filter(x=>x&&x!==q.answer)).s
  for(let i=1;set.size<3;i++)set.add('（選択肢'+i+'）');
  return shuf([q.answer,...set])}
 const cur=()=>Q.find(q=>q.id===ses.list[ses.i]);
-function move(d){const n=ses.i+d;if(n<0)return;if(n>=ses.list.length){alert('最後の問題です');return go('home')}ses.i=n;ses.flip=false;ses.ans=null;ses.ch=null;go(ses.mode)}
+function move(d){const n=ses.i+d;if(n<0)return;if(n>=ses.list.length){
+  if(ses.rest.length&&confirm(`この段階は終了です。続けて次の${Math.min(ses.n,ses.rest.length)}問に進みますか？（残り${ses.rest.length}問）`)){ses.list=ses.rest.slice(0,ses.n);ses.rest=ses.rest.slice(ses.n);ses.i=0;ses.flip=false;ses.ans=null;ses.ch=null;return go(ses.mode)}
+  alert('終了しました');return go('home')}ses.i=n;ses.flip=false;ses.ans=null;ses.ch=null;go(ses.mode)}
 async function mark(ok){const q=cur();q.review=!ok;q.updated=Date.now();await save([['questions','put',q]]);move(1)}
 async function answer(i){if(ses.ans!==null)return;const q=cur(),c=ses.ch[i],ok=c===q.answer;ses.ans=i;
  const h={id:uid(),qid:q.id,at:Date.now(),chosen:c,correct:q.answer,ok,tags:[...q.tags]};H.push(h);
@@ -145,6 +148,7 @@ const V={
 home(){const tg=allTags(),rv=Q.filter(q=>q.review).length,today=H.filter(h=>dkey(h.at)===dkey(Date.now())).length;
  return`<div class="box"><div class="mu">今日の取組</div><div class="stat">${today} / ${S.goal}問 ${today>=S.goal?'<span class="ok">達成！</span>':''}</div><div class="bar"><i style="width:${Math.min(100,pct(today,S.goal)||0)}%"></i></div></div>
  <div class="box"><label>タグで絞り込み<select id="ftag"><option value="">すべて（${Q.length}問）</option>${tg.map(t=>`<option>${esc(t)}</option>`).join('')}</select></label>
+ <label>1回に解く問題数<select id="fcnt" onchange="setS('count',this.value)">${[5,10,20,30,50,0].map(n=>`<option value="${n}" ${(S.count??10)==n?'selected':''}>${n?n+'問ずつ':'すべて'}</option>`).join('')}</select></label>
  <div class="grid"><button class="p" onclick="start('card')">暗記カード</button><button class="p" onclick="start('quiz')">4択クイズ</button><button onclick="start('card',1)">要復習カード（${rv}）</button><button onclick="start('quiz',1)">要復習クイズ（${rv}）</button></div></div>
  <nav><button onclick="go('manage')">問題管理</button><button onclick="go('files')">Excel/CSV</button><button onclick="go('mypage')">マイページ</button></nav>`},
 card(){const q=cur();return`${ses_head()}<div class="card flip ${ses.flip?'back':''}" id="fc" tabindex="0" role="button">${esc(ses.flip?q.answer:q.question)}</div><div>${tagsHtml(q)}</div>
